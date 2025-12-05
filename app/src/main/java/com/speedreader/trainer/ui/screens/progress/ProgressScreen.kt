@@ -1,24 +1,33 @@
 package com.speedreader.trainer.ui.screens.progress
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.speedreader.trainer.domain.model.ReadingSession
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProgressScreen(
-    viewModel: ProgressViewModel = hiltViewModel(),
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    viewModel: ProgressViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -28,112 +37,153 @@ fun ProgressScreen(
                 title = { Text("Your Progress") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            // Summary Stats
-            Text(
-                text = "Overview",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) { padding ->
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
             ) {
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Baseline WPM",
-                    value = "${uiState.baselineWpm}",
-                    icon = Icons.Default.Speed
-                )
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Sessions",
-                    value = "${uiState.totalSessions}",
-                    icon = Icons.Default.MenuBook
-                )
+                CircularProgressIndicator()
             }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Reading Time",
-                    value = "${uiState.totalMinutes} min",
-                    icon = Icons.Default.Timer
-                )
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    title = "Day Streak",
-                    value = "${uiState.currentStreak}",
-                    icon = Icons.Default.LocalFireDepartment
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Recent Sessions
-            Text(
-                text = "Recent Sessions",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (uiState.recentSessions.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                // Stats Overview
+                item {
+                    Text(
+                        text = "Overview",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
                     )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(
-                            Icons.Default.HistoryEdu,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        ProgressStatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.Speed,
+                            title = "Avg Speed",
+                            value = "${uiState.averageWpm} WPM"
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        ProgressStatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.Psychology,
+                            title = "Avg Score",
+                            value = "${uiState.averageComprehension.toInt()}%"
+                        )
+                    }
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ProgressStatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.Timer,
+                            title = "Total Time",
+                            value = formatTime(uiState.totalReadingTime)
+                        )
+                        ProgressStatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.LocalFireDepartment,
+                            title = "Streak",
+                            value = "${uiState.currentStreak} days"
+                        )
+                    }
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ProgressStatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.FormatListNumbered,
+                            title = "Total Sessions",
+                            value = "${uiState.totalSessions}"
+                        )
+                        ProgressStatCard(
+                            modifier = Modifier.weight(1f),
+                            icon = Icons.Default.MenuBook,
+                            title = "Words Read",
+                            value = "${uiState.sessions.sumOf { it.wordsRead }}"
+                        )
+                    }
+                }
+
+                // Session History
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = "No sessions yet",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "Recent Sessions",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "${uiState.sessions.size} shown",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-            } else {
-                uiState.recentSessions.forEach { session ->
-                    SessionCard(
-                        title = session.documentTitle,
-                        wpm = session.wpmUsed,
-                        comprehension = session.comprehensionScore,
-                        wordsRead = session.wordsRead
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+
+                if (uiState.sessions.isEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "No sessions yet",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Start reading to see your progress",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(uiState.sessions, key = { it.id }) { session ->
+                        SessionHistoryCard(
+                            session = session,
+                            onDelete = { viewModel.deleteSession(session.id) }
+                        )
+                    }
                 }
             }
         }
@@ -141,28 +191,29 @@ fun ProgressScreen(
 }
 
 @Composable
-private fun StatCard(
+private fun ProgressStatCard(
     modifier: Modifier = Modifier,
+    icon: ImageVector,
     title: String,
-    value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    value: String
 ) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp)
-    ) {
+    Card(modifier = modifier) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
             Text(
@@ -175,48 +226,100 @@ private fun StatCard(
 }
 
 @Composable
-private fun SessionCard(
-    title: String,
-    wpm: Int,
-    comprehension: Float,
-    wordsRead: Int
+private fun SessionHistoryCard(
+    session: ReadingSession,
+    onDelete: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
-    ) {
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val dateFormat = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+    
+    Card(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = title,
+                    text = session.documentTitle.ifEmpty { "Reading Session" },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = "$wordsRead words read",
+                    text = dateFormat.format(session.completedAt.toDate()),
                     style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "${session.wordsRead} words • ${session.durationSeconds}s",
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "$wpm WPM",
+                    text = "${session.wpmUsed} WPM",
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
+                    fontWeight = FontWeight.Medium
                 )
-                Text(
-                    text = "${(comprehension * 100).toInt()}% comprehension",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                if (session.hasQuiz) {
+                    Text(
+                        text = "${session.comprehensionScore.toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Text(
+                        text = "No quiz",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            IconButton(onClick = { showDeleteDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete session",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
                 )
             }
         }
+    }
+    
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Session?") },
+            text = { Text("Are you sure you want to delete this session? This action cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDelete()
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+private fun formatTime(seconds: Long): String {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes}m"
+        minutes > 0 -> "${minutes}m"
+        else -> "0m"
     }
 }
 

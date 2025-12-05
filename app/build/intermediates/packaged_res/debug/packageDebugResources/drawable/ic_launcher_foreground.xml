@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Book icon for Speed Reader -->
+    <group
+        android:translateX="27"
+        android:translateY="27">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M27,4C25.34,4 24,5.34 24,7V47C24,48.66 25.34,50 27,50H47C48.66,50 50,48.66 50,47V7C50,5.34 48.66,4 47,4H27ZM27,7H47V47H27V7Z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M7,4C5.34,4 4,5.34 4,7V47C4,48.66 5.34,50 7,50H21V47H7V7H21V4H7Z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M21,4V50H24V4H21Z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M30,12H44V15H30V12Z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M30,18H44V21H30V18Z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M30,24H44V27H30V24Z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M30,30H38V33H30V30Z"/>
+    </group>
+</vector>
+

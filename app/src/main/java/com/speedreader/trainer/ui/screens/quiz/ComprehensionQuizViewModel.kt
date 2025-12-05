@@ -6,6 +6,7 @@ import com.speedreader.trainer.data.repository.ReadingSessionRepository
 import com.speedreader.trainer.data.repository.UserRepository
 import com.speedreader.trainer.domain.model.ComprehensionQuestion
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,14 +14,15 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ComprehensionQuizUiState(
-    val sessionId: String = "",
     val questions: List<ComprehensionQuestion> = emptyList(),
     val currentQuestionIndex: Int = 0,
-    val userAnswers: MutableMap<Int, Int> = mutableMapOf(),
     val selectedAnswer: Int? = null,
+    val isAnswerChecked: Boolean = false,
+    val showFeedback: Boolean = false,
+    val answers: Map<Int, Int> = emptyMap(),
     val isLoading: Boolean = true,
     val isComplete: Boolean = false,
-    val canSubmit: Boolean = false,
+    val score: Float = 0f,
     val error: String? = null
 )
 
@@ -33,92 +35,93 @@ class ComprehensionQuizViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(ComprehensionQuizUiState())
     val uiState: StateFlow<ComprehensionQuizUiState> = _uiState.asStateFlow()
 
-    fun loadQuestions(sessionId: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
-                sessionId = sessionId,
-                isLoading = true
-            )
+    private var sessionId: String = ""
 
-            val questions = sessionRepository.getPendingQuestions(sessionId)
+    fun loadQuiz(sessId: String) {
+        sessionId = sessId
+        viewModelScope.launch {
+            // First try to get questions immediately
+            var questions = sessionRepository.getPendingQuestions()
             
-            _uiState.value = _uiState.value.copy(
-                questions = questions,
-                isLoading = false,
-                selectedAnswer = null
-            )
+            // If not ready, wait for them (with timeout)
+            if (questions == null || questions.isEmpty()) {
+                questions = sessionRepository.waitForQuestions(timeoutMs = 30000)
+            }
+            
+            if (questions != null && questions.isNotEmpty()) {
+                android.util.Log.d("ComprehensionQuiz", "Loaded ${questions.size} questions")
+                _uiState.value = _uiState.value.copy(
+                    questions = questions,
+                    isLoading = false
+                )
+            } else {
+                android.util.Log.e("ComprehensionQuiz", "Failed to load questions - questions were null or empty")
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Failed to load questions. Please try again."
+                )
+            }
         }
     }
 
-    fun selectAnswer(index: Int) {
-        val currentState = _uiState.value
-        val newAnswers = currentState.userAnswers.toMutableMap()
-        newAnswers[currentState.currentQuestionIndex] = index
+    fun selectAnswer(answerIndex: Int) {
+        if (!_uiState.value.isAnswerChecked) {
+            _uiState.value = _uiState.value.copy(selectedAnswer = answerIndex)
+        }
+    }
+
+    fun checkAnswer() {
+        val selectedAnswer = _uiState.value.selectedAnswer ?: return
+        val currentIndex = _uiState.value.currentQuestionIndex
         
-        _uiState.value = currentState.copy(
-            selectedAnswer = index,
-            userAnswers = newAnswers,
-            canSubmit = newAnswers.size == currentState.questions.size
+        val newAnswers = _uiState.value.answers + (currentIndex to selectedAnswer)
+        _uiState.value = _uiState.value.copy(
+            answers = newAnswers,
+            isAnswerChecked = true,
+            showFeedback = true
         )
     }
 
     fun nextQuestion() {
-        val currentState = _uiState.value
-        if (currentState.currentQuestionIndex < currentState.questions.size - 1) {
-            val nextIndex = currentState.currentQuestionIndex + 1
-            _uiState.value = currentState.copy(
-                currentQuestionIndex = nextIndex,
-                selectedAnswer = currentState.userAnswers[nextIndex]
+        val currentIndex = _uiState.value.currentQuestionIndex
+        val isLastQuestion = currentIndex >= _uiState.value.questions.size - 1
+        
+        if (isLastQuestion) {
+            calculateAndSaveResults()
+        } else {
+            _uiState.value = _uiState.value.copy(
+                currentQuestionIndex = currentIndex + 1,
+                selectedAnswer = null,
+                isAnswerChecked = false,
+                showFeedback = false
             )
         }
     }
 
-    fun previousQuestion() {
-        val currentState = _uiState.value
-        if (currentState.currentQuestionIndex > 0) {
-            val prevIndex = currentState.currentQuestionIndex - 1
-            _uiState.value = currentState.copy(
-                currentQuestionIndex = prevIndex,
-                selectedAnswer = currentState.userAnswers[prevIndex]
-            )
+    private fun calculateAndSaveResults() {
+        val questions = _uiState.value.questions
+        val answers = _uiState.value.answers
+        
+        var correct = 0
+        questions.forEachIndexed { index, question ->
+            if (answers[index] == question.correctAnswerIndex) {
+                correct++
+            }
         }
-    }
-
-    fun submitQuiz() {
+        
+        val score = if (questions.isNotEmpty()) {
+            (correct.toFloat() / questions.size) * 100
+        } else {
+            0f
+        }
+        
         viewModelScope.launch {
-            val currentState = _uiState.value
+            sessionRepository.completeSession(score)
+            userRepository.updateSessionStats(0, score)
             
-            // Calculate score
-            var correctCount = 0
-            currentState.questions.forEachIndexed { index, question ->
-                val userAnswer = currentState.userAnswers[index]
-                if (userAnswer == question.correctAnswerIndex) {
-                    correctCount++
-                }
-            }
-            
-            val score = if (currentState.questions.isNotEmpty()) {
-                correctCount.toFloat() / currentState.questions.size
-            } else {
-                0f
-            }
-
-            // Complete the session
-            val result = sessionRepository.completeSession(currentState.sessionId, score)
-            
-            result.fold(
-                onSuccess = { session ->
-                    // Update user stats
-                    userRepository.updateSessionStats(
-                        durationSeconds = session.durationSeconds,
-                        comprehensionScore = score
-                    )
-                    
-                    _uiState.value = currentState.copy(isComplete = true)
-                },
-                onFailure = { e ->
-                    _uiState.value = currentState.copy(error = e.message)
-                }
+            _uiState.value = _uiState.value.copy(
+                isComplete = true,
+                score = score
             )
         }
     }

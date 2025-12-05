@@ -8,7 +8,15 @@ data class UserDocument(
     val title: String = "",
     val content: String = "",
     val wordCount: Int = 0,
-    val fileType: String = "", // "pdf", "txt", "md"
-    val uploadedAt: Timestamp = Timestamp.now()
-)
+    val fileType: String = "",
+    val uploadedAt: Timestamp = Timestamp.now(),
+    val lastReadWordIndex: Int = 0,
+    val lastReadAt: Timestamp? = null
+) {
+    val hasProgress: Boolean
+        get() = lastReadWordIndex > 0
+    
+    val progressPercent: Int
+        get() = if (wordCount > 0) ((lastReadWordIndex.toFloat() / wordCount) * 100).toInt() else 0
+}
 

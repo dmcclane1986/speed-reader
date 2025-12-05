@@ -1,9 +1,8 @@
 package com.speedreader.trainer.data.repository
 
-import com.google.firebase.Timestamp
+import com.google.firebase.auth.AuthCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.firestore.FirebaseFirestore
 import com.speedreader.trainer.domain.model.UserProfile
 import kotlinx.coroutines.channels.awaitClose
@@ -19,10 +18,7 @@ class AuthRepository @Inject constructor(
     val currentUser: FirebaseUser?
         get() = firebaseAuth.currentUser
 
-    val isLoggedIn: Boolean
-        get() = currentUser != null
-
-    fun authStateFlow(): Flow<FirebaseUser?> = callbackFlow {
+    fun getAuthStateFlow(): Flow<FirebaseUser?> = callbackFlow {
         val listener = FirebaseAuth.AuthStateListener { auth ->
             trySend(auth.currentUser)
         }
@@ -40,11 +36,7 @@ class AuthRepository @Inject constructor(
         }
     }
 
-    suspend fun registerWithEmail(
-        email: String,
-        password: String,
-        displayName: String
-    ): Result<FirebaseUser> {
+    suspend fun signUpWithEmail(email: String, password: String, displayName: String = ""): Result<FirebaseUser> {
         return try {
             val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
             result.user?.let { user ->
@@ -52,33 +44,30 @@ class AuthRepository @Inject constructor(
                 val profile = UserProfile(
                     uid = user.uid,
                     email = email,
-                    displayName = displayName,
-                    createdAt = Timestamp.now()
+                    displayName = displayName
                 )
                 firestore.collection("users")
                     .document(user.uid)
                     .set(profile)
                     .await()
                 Result.success(user)
-            } ?: Result.failure(Exception("Registration failed"))
+            } ?: Result.failure(Exception("Sign up failed"))
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun signInWithGoogle(idToken: String): Result<FirebaseUser> {
+    suspend fun signInWithCredential(credential: AuthCredential): Result<FirebaseUser> {
         return try {
-            val credential = GoogleAuthProvider.getCredential(idToken, null)
             val result = firebaseAuth.signInWithCredential(credential).await()
             result.user?.let { user ->
                 // Check if user profile exists, create if not
-                val doc = firestore.collection("users").document(user.uid).get().await()
-                if (!doc.exists()) {
+                val userDoc = firestore.collection("users").document(user.uid).get().await()
+                if (!userDoc.exists()) {
                     val profile = UserProfile(
                         uid = user.uid,
                         email = user.email ?: "",
-                        displayName = user.displayName ?: "",
-                        createdAt = Timestamp.now()
+                        displayName = user.displayName ?: ""
                     )
                     firestore.collection("users")
                         .document(user.uid)
@@ -86,7 +75,7 @@ class AuthRepository @Inject constructor(
                         .await()
                 }
                 Result.success(user)
-            } ?: Result.failure(Exception("Google sign in failed"))
+            } ?: Result.failure(Exception("Sign in failed"))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -96,12 +85,13 @@ class AuthRepository @Inject constructor(
         firebaseAuth.signOut()
     }
 
-    suspend fun resetPassword(email: String): Result<Unit> {
+    suspend fun hasCompletedBaseline(): Boolean {
+        val userId = currentUser?.uid ?: return false
         return try {
-            firebaseAuth.sendPasswordResetEmail(email).await()
-            Result.success(Unit)
+            val doc = firestore.collection("users").document(userId).get().await()
+            doc.getBoolean("hasCompletedBaseline") ?: false
         } catch (e: Exception) {
-            Result.failure(e)
+            false
         }
     }
 }

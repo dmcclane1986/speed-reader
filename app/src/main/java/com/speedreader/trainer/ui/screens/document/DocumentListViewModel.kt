@@ -31,8 +31,8 @@ class DocumentListViewModel @Inject constructor(
 
     private fun loadDocuments() {
         viewModelScope.launch {
-            documentRepository.getUserDocumentsFlow().collect { documents ->
-                _uiState.value = DocumentListUiState(
+            documentRepository.getDocumentsFlow().collect { documents ->
+                _uiState.value = _uiState.value.copy(
                     documents = documents,
                     isLoading = false
                 )

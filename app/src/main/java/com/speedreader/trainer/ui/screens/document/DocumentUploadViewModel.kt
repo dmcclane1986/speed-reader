@@ -13,10 +13,12 @@ import javax.inject.Inject
 
 data class DocumentUploadUiState(
     val selectedUri: Uri? = null,
-    val selectedFileName: String = "",
+    val fileName: String = "",
+    val title: String = "",
+    val fileType: String = "",
     val isUploading: Boolean = false,
-    val uploadSuccess: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val isSuccess: Boolean = false
 )
 
 @HiltViewModel
@@ -27,41 +29,66 @@ class DocumentUploadViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DocumentUploadUiState())
     val uiState: StateFlow<DocumentUploadUiState> = _uiState.asStateFlow()
 
-    fun selectFile(uri: Uri) {
-        val fileName = uri.lastPathSegment?.substringAfterLast("/") ?: "Selected file"
+    fun setSelectedFile(uri: Uri, fileName: String) {
+        val fileType = when {
+            fileName.endsWith(".pdf", ignoreCase = true) -> "pdf"
+            fileName.endsWith(".txt", ignoreCase = true) -> "txt"
+            fileName.endsWith(".md", ignoreCase = true) -> "md"
+            else -> ""
+        }
+        
+        val title = fileName.substringBeforeLast(".")
+        
         _uiState.value = _uiState.value.copy(
             selectedUri = uri,
-            selectedFileName = fileName,
-            error = null
+            fileName = fileName,
+            title = title,
+            fileType = fileType,
+            error = if (fileType.isEmpty()) "Unsupported file type" else null
         )
     }
 
-    fun uploadDocument(customTitle: String) {
-        val uri = _uiState.value.selectedUri ?: return
+    fun updateTitle(title: String) {
+        _uiState.value = _uiState.value.copy(title = title)
+    }
+
+    fun uploadDocument() {
+        val state = _uiState.value
+        val uri = state.selectedUri ?: return
+        
+        if (state.title.isBlank()) {
+            _uiState.value = state.copy(error = "Please enter a title")
+            return
+        }
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isUploading = true, error = null)
-
+            _uiState.value = state.copy(isUploading = true, error = null)
+            
             val result = documentRepository.uploadDocument(
                 uri = uri,
-                title = customTitle.ifBlank { _uiState.value.selectedFileName }
+                title = state.title,
+                fileType = state.fileType
             )
-
+            
             result.fold(
                 onSuccess = {
                     _uiState.value = _uiState.value.copy(
                         isUploading = false,
-                        uploadSuccess = true
+                        isSuccess = true
                     )
                 },
-                onFailure = { e ->
+                onFailure = { exception ->
                     _uiState.value = _uiState.value.copy(
                         isUploading = false,
-                        error = e.message ?: "Upload failed"
+                        error = exception.message ?: "Upload failed"
                     )
                 }
             )
         }
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(error = null)
     }
 }
 

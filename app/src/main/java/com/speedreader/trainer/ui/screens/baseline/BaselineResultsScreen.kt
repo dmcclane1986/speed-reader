@@ -1,161 +1,132 @@
 package com.speedreader.trainer.ui.screens.baseline
 
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.speedreader.trainer.ui.theme.Success
-import com.speedreader.trainer.ui.theme.Teal700
-import com.speedreader.trainer.ui.theme.Teal900
 
 @Composable
 fun BaselineResultsScreen(
-    viewModel: BaselineViewModel = hiltViewModel(),
-    onContinue: () -> Unit
+    viewModel: BaselineViewModel,
+    onContinueToDashboard: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Animation
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val scale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.05f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "scale"
-    )
-
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Teal900, Teal700)
-                )
-            )
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Icon(
+            imageVector = Icons.Default.CheckCircle,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(80.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Baseline Complete!",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text = "Here are your results:",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Success Icon
-            Surface(
-                shape = CircleShape,
-                color = Success,
-                modifier = Modifier
-                    .size(100.dp)
-                    .scale(scale)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(60.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = "Baseline Complete!",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimary
+            ResultCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.Speed,
+                title = "Reading Speed",
+                value = "${uiState.calculatedWpm}",
+                unit = "WPM"
             )
 
-            Text(
-                text = "Here are your results",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+            ResultCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.Psychology,
+                title = "Comprehension",
+                value = "${uiState.comprehensionScore.toInt()}",
+                unit = "%"
             )
+        }
 
-            Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-            // Results Cards
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                ResultCard(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.Speed,
-                    label = "Reading Speed",
-                    value = "${uiState.calculatedWpm}",
-                    unit = "WPM"
-                )
-                ResultCard(
-                    modifier = Modifier.weight(1f),
-                    icon = Icons.Default.Psychology,
-                    label = "Comprehension",
-                    value = "${(uiState.comprehensionScore * 100).toInt()}",
-                    unit = "%"
-                )
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Insight
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp)
-                ) {
-                    Text(
-                        text = getSpeedInsight(uiState.calculatedWpm),
-                        style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            Button(
-                onClick = onContinue,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.onPrimary,
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "Start Training",
+                    text = "What's Next?",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "We'll use these results to personalize your training. " +
+                            "Upload documents and practice at gradually increasing speeds " +
+                            "to improve your reading ability.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(48.dp))
+
+        if (uiState.isSaving) {
+            CircularProgressIndicator()
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Saving results...")
+        } else if (uiState.saveError != null) {
+            Text(
+                text = "Error: ${uiState.saveError}",
+                color = MaterialTheme.colorScheme.error
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = onContinueToDashboard) {
+                Text("Continue Anyway")
+            }
+        } else {
+            Button(
+                onClick = onContinueToDashboard,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Text("Continue to Dashboard")
             }
         }
     }
@@ -164,65 +135,51 @@ fun BaselineResultsScreen(
 @Composable
 private fun ResultCard(
     modifier: Modifier = Modifier,
-    icon: ImageVector,
-    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
     value: String,
     unit: String
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+            containerColor = MaterialTheme.colorScheme.primaryContainer
         )
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
+                .padding(16.dp)
+                .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.onPrimaryContainer,
                 modifier = Modifier.size(32.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = label,
+                text = title,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onPrimaryContainer
             )
-            Spacer(modifier = Modifier.height(4.dp))
             Row(
                 verticalAlignment = Alignment.Bottom
             ) {
                 Text(
                     text = value,
-                    style = MaterialTheme.typography.displaySmall,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = unit,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 4.dp)
+                    text = " $unit",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
-    }
-}
-
-private fun getSpeedInsight(wpm: Int): String {
-    return when {
-        wpm < 150 -> "You're reading below average speed. With practice, you can significantly improve! Most people start here."
-        wpm < 250 -> "You're reading at an average pace. There's great potential to increase your speed while maintaining comprehension."
-        wpm < 400 -> "Great job! You're reading faster than average. Let's push those boundaries even further."
-        wpm < 600 -> "Impressive! You're already a skilled reader. Fine-tuning your technique can take you even higher."
-        else -> "Exceptional! You're reading at an elite level. Focus on maintaining comprehension at these speeds."
     }
 }
 

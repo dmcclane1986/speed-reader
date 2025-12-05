@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "676082271214",
+    "project_id": "speed-reader-37758",
+    "storage_bucket": "speed-reader-37758.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:676082271214:android:4065b67b3e72c1f1dc44ff",
+        "android_client_info": {
+          "package_name": "com.speedreader.trainer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLfM7voGOVuE4FU9z5fYS0Qe1RtCKSYJY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

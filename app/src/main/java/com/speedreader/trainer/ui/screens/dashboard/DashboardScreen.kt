@@ -1,41 +1,39 @@
 package com.speedreader.trainer.ui.screens.dashboard
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.speedreader.trainer.ui.theme.Amber500
-import com.speedreader.trainer.ui.theme.Teal500
-import com.speedreader.trainer.ui.theme.Teal700
+import com.speedreader.trainer.domain.model.UserDocument
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
-    viewModel: DashboardViewModel = hiltViewModel(),
     onNavigateToUpload: () -> Unit,
     onNavigateToDocuments: () -> Unit,
     onNavigateToProgress: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onStartReading: (documentId: String) -> Unit
+    onNavigateToReading: (String) -> Unit,
+    viewModel: DashboardViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val scrollState = rememberScrollState()
 
     Scaffold(
         topBar = {
@@ -55,42 +53,47 @@ fun DashboardScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onNavigateToProgress) {
-                        Icon(Icons.Default.BarChart, contentDescription = "Progress")
-                    }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onNavigateToUpload,
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Upload Document")
+            }
         }
-    ) { paddingValues ->
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
+                .padding(padding)
+                .verticalScroll(scrollState)
         ) {
-            // Stats Cards
+            // Stats Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 StatCard(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Default.Speed,
-                    label = "Current WPM",
-                    value = "${uiState.baselineWpm}",
-                    color = Teal500
+                    title = "Current WPM",
+                    value = "${uiState.currentWpm}",
+                    color = MaterialTheme.colorScheme.primary
                 )
-                StatCard(
+
+                ComprehensionStatCard(
                     modifier = Modifier.weight(1f),
-                    icon = Icons.Default.LocalFireDepartment,
-                    label = "Day Streak",
-                    value = "${uiState.currentStreak}",
-                    color = Amber500
+                    latestScore = uiState.latestComprehensionScore,
+                    averageScore = uiState.averageComprehensionScore,
+                    color = MaterialTheme.colorScheme.secondary
                 )
             }
 
@@ -102,17 +105,18 @@ fun DashboardScreen(
             ) {
                 StatCard(
                     modifier = Modifier.weight(1f),
-                    icon = Icons.Default.MenuBook,
-                    label = "Sessions",
-                    value = "${uiState.sessionsCompleted}",
-                    color = Teal700
+                    icon = Icons.Default.Timer,
+                    title = "Total Time",
+                    value = formatTime(uiState.totalReadingTime),
+                    color = MaterialTheme.colorScheme.tertiary
                 )
+
                 StatCard(
                     modifier = Modifier.weight(1f),
-                    icon = Icons.Default.Psychology,
-                    label = "Comprehension",
-                    value = "${(uiState.baselineComprehension * 100).toInt()}%",
-                    color = MaterialTheme.colorScheme.secondary
+                    icon = Icons.Default.LocalFireDepartment,
+                    title = "Streak",
+                    value = "${uiState.currentStreak} days",
+                    color = MaterialTheme.colorScheme.error
                 )
             }
 
@@ -138,15 +142,21 @@ fun DashboardScreen(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Default.Upload,
                     title = "Upload",
-                    subtitle = "Add new document",
                     onClick = onNavigateToUpload
                 )
+
                 ActionCard(
                     modifier = Modifier.weight(1f),
-                    icon = Icons.Default.FolderOpen,
-                    title = "My Documents",
-                    subtitle = "View library",
+                    icon = Icons.Default.LibraryBooks,
+                    title = "Documents",
                     onClick = onNavigateToDocuments
+                )
+
+                ActionCard(
+                    modifier = Modifier.weight(1f),
+                    icon = Icons.Default.ShowChart,
+                    title = "Progress",
+                    onClick = onNavigateToProgress
                 )
             }
 
@@ -177,97 +187,14 @@ fun DashboardScreen(
                 ) {
                     items(uiState.recentDocuments) { document ->
                         DocumentCard(
-                            title = document.title,
-                            wordCount = document.wordCount,
-                            fileType = document.fileType,
-                            onClick = { onStartReading(document.id) }
-                        )
-                    }
-                }
-            } else {
-                // Empty state
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Upload,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "No documents yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "Upload a PDF, TXT, or MD file to start practicing",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(onClick = onNavigateToUpload) {
-                            Icon(Icons.Default.Add, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Upload Document")
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Tips Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lightbulb,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Pro Tip",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Text(
-                            text = "Practice daily for 15-20 minutes to see the best results. Consistency beats intensity!",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            document = document,
+                            onClick = { onNavigateToReading(document.id) }
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(100.dp)) // Space for FAB
         }
     }
 }
@@ -276,44 +203,82 @@ fun DashboardScreen(
 private fun StatCard(
     modifier: Modifier = Modifier,
     icon: ImageVector,
-    label: String,
+    title: String,
     value: String,
     color: androidx.compose.ui.graphics.Color
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = color.copy(alpha = 0.1f)
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = color.copy(alpha = 0.15f),
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = color,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = color
             )
             Text(
-                text = label,
+                text = title,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun ComprehensionStatCard(
+    modifier: Modifier = Modifier,
+    latestScore: Float?,
+    averageScore: Float?,
+    color: androidx.compose.ui.graphics.Color
+) {
+    Card(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(
+            containerColor = color.copy(alpha = 0.1f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Psychology,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = latestScore?.let { "${it.toInt()}%" } ?: "--",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = color
+            )
+            Text(
+                text = "Comprehension",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (averageScore != null) {
+                Text(
+                    text = "Avg: ${averageScore.toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -323,32 +288,29 @@ private fun ActionCard(
     modifier: Modifier = Modifier,
     icon: ImageVector,
     title: String,
-    subtitle: String,
     onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier.clickable { onClick() },
-        shape = RoundedCornerShape(16.dp)
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(32.dp)
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium
             )
         }
     }
@@ -356,54 +318,64 @@ private fun ActionCard(
 
 @Composable
 private fun DocumentCard(
-    title: String,
-    wordCount: Int,
-    fileType: String,
+    document: UserDocument,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .width(200.dp)
-            .clickable { onClick() },
+            .width(160.dp)
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Description,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Text(
-                        text = fileType.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
+            Icon(
+                imageVector = when (document.fileType.lowercase()) {
+                    "pdf" -> Icons.Default.PictureAsPdf
+                    "md" -> Icons.Default.Description
+                    else -> Icons.Default.Article
+                },
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
+                text = document.title,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                maxLines = 2
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = "$wordCount words",
+                text = "${document.wordCount} words",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (document.hasProgress) {
+                Spacer(modifier = Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = document.progressPercent / 100f,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = "${document.progressPercent}% complete",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
+    }
+}
+
+private fun formatTime(seconds: Long): String {
+    val hours = seconds / 3600
+    val minutes = (seconds % 3600) / 60
+    return when {
+        hours > 0 -> "${hours}h ${minutes}m"
+        minutes > 0 -> "${minutes}m"
+        else -> "0m"
     }
 }
 

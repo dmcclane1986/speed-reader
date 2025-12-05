@@ -13,41 +13,70 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class ProgressUiState(
-    val baselineWpm: Int = 0,
+    val sessions: List<ReadingSession> = emptyList(),
     val totalSessions: Int = 0,
-    val totalMinutes: Int = 0,
+    val totalReadingTime: Long = 0,
+    val sessionsCompleted: Int = 0,
+    val averageWpm: Int = 0,
+    val averageComprehension: Float = 0f,
     val currentStreak: Int = 0,
-    val recentSessions: List<ReadingSession> = emptyList(),
     val isLoading: Boolean = true
 )
 
 @HiltViewModel
 class ProgressViewModel @Inject constructor(
-    private val userRepository: UserRepository,
-    private val sessionRepository: ReadingSessionRepository
+    private val sessionRepository: ReadingSessionRepository,
+    private val userRepository: UserRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProgressUiState())
     val uiState: StateFlow<ProgressUiState> = _uiState.asStateFlow()
 
     init {
-        loadData()
+        loadProgress()
     }
 
-    private fun loadData() {
+    private fun loadProgress() {
         viewModelScope.launch {
             val profile = userRepository.getUserProfile()
-            val sessions = sessionRepository.getRecentSessions(10)
-
-            _uiState.value = ProgressUiState(
-                baselineWpm = profile?.baselineWpm ?: 0,
-                totalSessions = profile?.sessionsCompleted ?: 0,
-                totalMinutes = ((profile?.totalReadingTimeSeconds ?: 0) / 60).toInt(),
+            val sessions = sessionRepository.getRecentSessions(50)
+            val totalSessions = sessionRepository.getAllSessionsCount()
+            
+            val avgWpm = if (sessions.isNotEmpty()) {
+                sessions.map { it.wpmUsed }.average().toInt()
+            } else 0
+            
+            val sessionsWithQuiz = sessions.filter { it.hasQuiz }
+            val avgComprehension = if (sessionsWithQuiz.isNotEmpty()) {
+                sessionsWithQuiz.map { it.comprehensionScore }.average().toFloat()
+            } else 0f
+            
+            _uiState.value = _uiState.value.copy(
+                sessions = sessions,
+                totalSessions = totalSessions,
+                totalReadingTime = profile?.totalReadingTimeSeconds ?: 0,
+                sessionsCompleted = profile?.sessionsCompleted ?: 0,
+                averageWpm = avgWpm,
+                averageComprehension = avgComprehension,
                 currentStreak = profile?.currentStreak ?: 0,
-                recentSessions = sessions,
                 isLoading = false
             )
         }
+    }
+
+    fun deleteSession(sessionId: String) {
+        viewModelScope.launch {
+            val result = sessionRepository.deleteSession(sessionId)
+            if (result.isSuccess) {
+                // Reload the data
+                loadProgress()
+            }
+        }
+    }
+
+    fun refresh() {
+        _uiState.value = _uiState.value.copy(isLoading = true)
+        loadProgress()
     }
 }
 

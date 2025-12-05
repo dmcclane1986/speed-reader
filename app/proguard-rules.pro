@@ -5,12 +5,14 @@
 # Keep Firebase classes
 -keep class com.google.firebase.** { *; }
 
-# Keep Retrofit classes
--keep class retrofit2.** { *; }
--keepattributes Signature
--keepattributes Exceptions
+# Keep data classes for Firestore
+-keepclassmembers class com.speedreader.trainer.domain.model.** {
+    *;
+}
 
-# Keep data classes for Gson
--keep class com.speedreader.trainer.domain.model.** { *; }
--keep class com.speedreader.trainer.data.remote.** { *; }
+# Keep Retrofit interfaces
+-keepattributes Signature
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
+}
 

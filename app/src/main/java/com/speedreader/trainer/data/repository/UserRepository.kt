@@ -51,14 +51,38 @@ class UserRepository @Inject constructor(
     suspend fun updateBaselineResults(wpm: Int, comprehension: Float): Result<Unit> {
         val userId = currentUserId ?: return Result.failure(Exception("Not logged in"))
         return try {
+            android.util.Log.d("UserRepository", "Saving baseline results: wpm=$wpm, comprehension=$comprehension for user=$userId")
+            
+            // Use set with merge to create document if it doesn't exist
             firestore.collection("users")
                 .document(userId)
-                .update(
+                .set(
                     mapOf(
+                        "uid" to userId,
                         "baselineWpm" to wpm,
                         "baselineComprehension" to comprehension,
                         "hasCompletedBaseline" to true
-                    )
+                    ),
+                    com.google.firebase.firestore.SetOptions.merge()
+                )
+                .await()
+            
+            android.util.Log.d("UserRepository", "Baseline results saved successfully")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            android.util.Log.e("UserRepository", "Failed to save baseline results", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun updateDisplayName(name: String): Result<Unit> {
+        val userId = currentUserId ?: return Result.failure(Exception("Not logged in"))
+        return try {
+            firestore.collection("users")
+                .document(userId)
+                .set(
+                    mapOf("displayName" to name),
+                    com.google.firebase.firestore.SetOptions.merge()
                 )
                 .await()
             Result.success(Unit)
@@ -67,6 +91,7 @@ class UserRepository @Inject constructor(
         }
     }
 
+    @Suppress("UNUSED_PARAMETER") // Reserved for future average comprehension tracking
     suspend fun updateSessionStats(
         durationSeconds: Int,
         comprehensionScore: Float
@@ -95,8 +120,8 @@ class UserRepository @Inject constructor(
                 
                 when {
                     lastPractice >= today -> profile.currentStreak // Already practiced today
-                    lastPractice >= yesterday -> profile.currentStreak + 1 // Continuing streak
-                    else -> 1 // Streak broken, start new
+                    lastPractice >= yesterday -> profile.currentStreak + 1 // Continued streak
+                    else -> 1 // Streak broken
                 }
             } else {
                 1 // First practice
@@ -113,6 +138,7 @@ class UserRepository @Inject constructor(
                     )
                 )
                 .await()
+            
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

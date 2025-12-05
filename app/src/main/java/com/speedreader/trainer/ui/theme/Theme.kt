@@ -60,7 +60,7 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun SpeedReaderTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Disabled for consistent branding
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

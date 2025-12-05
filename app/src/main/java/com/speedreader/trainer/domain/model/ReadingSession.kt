@@ -10,6 +10,7 @@ data class ReadingSession(
     val wpmUsed: Int = 0,
     val wordsRead: Int = 0,
     val comprehensionScore: Float = 0f,
+    val hasQuiz: Boolean = true,
     val durationSeconds: Int = 0,
     val completedAt: Timestamp = Timestamp.now()
 )

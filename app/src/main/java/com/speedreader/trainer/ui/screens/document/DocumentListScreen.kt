@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,15 +17,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.speedreader.trainer.domain.model.UserDocument
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocumentListScreen(
-    viewModel: DocumentListViewModel = hiltViewModel(),
+    onNavigateBack: () -> Unit,
     onSelectDocument: (String) -> Unit,
-    onNavigateBack: () -> Unit
+    viewModel: DocumentListViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var documentToDelete by remember { mutableStateOf<UserDocument?>(null) }
@@ -35,36 +34,43 @@ fun DocumentListScreen(
                 title = { Text("My Documents") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
         }
-    ) { paddingValues ->
-        if (uiState.documents.isEmpty() && !uiState.isLoading) {
-            // Empty state
+    ) { padding ->
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (uiState.documents.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
+                    .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
-                        imageVector = Icons.Default.FolderOff,
+                        imageVector = Icons.Default.FolderOpen,
                         contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(64.dp)
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "No documents yet",
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Upload a document to start practicing",
+                        text = "Upload your first document to get started",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -74,12 +80,12 @@ fun DocumentListScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues),
+                    .padding(padding),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(uiState.documents, key = { it.id }) { document ->
-                    DocumentItem(
+                items(uiState.documents) { document ->
+                    DocumentListItem(
                         document = document,
                         onClick = { onSelectDocument(document.id) },
                         onDelete = { documentToDelete = document }
@@ -89,23 +95,20 @@ fun DocumentListScreen(
         }
     }
 
-    // Delete confirmation dialog
+    // Delete Confirmation Dialog
     documentToDelete?.let { document ->
         AlertDialog(
             onDismissRequest = { documentToDelete = null },
-            title = { Text("Delete Document") },
-            text = { Text("Are you sure you want to delete \"${document.title}\"?") },
+            title = { Text("Delete Document?") },
+            text = { Text("Are you sure you want to delete \"${document.title}\"? This action cannot be undone.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         viewModel.deleteDocument(document.id)
                         documentToDelete = null
-                    },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
+                    }
                 ) {
-                    Text("Delete")
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -118,7 +121,7 @@ fun DocumentListScreen(
 }
 
 @Composable
-private fun DocumentItem(
+private fun DocumentListItem(
     document: UserDocument,
     onClick: () -> Unit,
     onDelete: () -> Unit
@@ -126,37 +129,31 @@ private fun DocumentItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // File type icon
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = when (document.fileType) {
-                            "pdf" -> Icons.Default.PictureAsPdf
-                            "md" -> Icons.Default.Code
-                            else -> Icons.Default.TextSnippet
-                        },
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
+            Icon(
+                imageVector = when (document.fileType.lowercase()) {
+                    "pdf" -> Icons.Default.PictureAsPdf
+                    "md" -> Icons.Default.Description
+                    else -> Icons.Default.Article
+                },
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(40.dp)
+            )
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
                 Text(
                     text = document.title,
                     style = MaterialTheme.typography.titleMedium,
@@ -164,32 +161,29 @@ private fun DocumentItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${document.wordCount} words",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = " • ",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = document.fileType.uppercase(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = " • ",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = formatDate(document.uploadedAt.toDate()),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Text(
+                    text = "${document.wordCount} words • ${document.fileType.uppercase()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (document.hasProgress) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LinearProgressIndicator(
+                            progress = document.progressPercent / 100f,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(4.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${document.progressPercent}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
 
@@ -200,18 +194,7 @@ private fun DocumentItem(
                     tint = MaterialTheme.colorScheme.error
                 )
             }
-
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
-}
-
-private fun formatDate(date: Date): String {
-    val sdf = SimpleDateFormat("MMM d", Locale.getDefault())
-    return sdf.format(date)
 }
 

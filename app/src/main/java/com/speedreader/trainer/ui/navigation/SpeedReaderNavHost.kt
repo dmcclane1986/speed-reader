@@ -1,8 +1,6 @@
 package com.speedreader.trainer.ui.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -10,12 +8,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.navigation.navigation
 import com.speedreader.trainer.ui.screens.auth.LoginScreen
 import com.speedreader.trainer.ui.screens.auth.RegisterScreen
 import com.speedreader.trainer.ui.screens.baseline.BaselineQuizScreen
 import com.speedreader.trainer.ui.screens.baseline.BaselineReadingScreen
 import com.speedreader.trainer.ui.screens.baseline.BaselineResultsScreen
 import com.speedreader.trainer.ui.screens.baseline.BaselineTestScreen
+import com.speedreader.trainer.ui.screens.baseline.BaselineViewModel
 import com.speedreader.trainer.ui.screens.dashboard.DashboardScreen
 import com.speedreader.trainer.ui.screens.document.DocumentListScreen
 import com.speedreader.trainer.ui.screens.document.DocumentUploadScreen
@@ -59,15 +59,14 @@ fun SpeedReaderNavHost(
                 onNavigateToRegister = {
                     navController.navigate(NavRoutes.Register.route)
                 },
-                onLoginSuccess = { hasCompletedBaseline ->
-                    if (hasCompletedBaseline) {
-                        navController.navigate(NavRoutes.Dashboard.route) {
-                            popUpTo(NavRoutes.Login.route) { inclusive = true }
-                        }
-                    } else {
-                        navController.navigate(NavRoutes.BaselineTest.route) {
-                            popUpTo(NavRoutes.Login.route) { inclusive = true }
-                        }
+                onNavigateToBaseline = {
+                    navController.navigate(NavRoutes.BaselineTest.route) {
+                        popUpTo(NavRoutes.Login.route) { inclusive = true }
+                    }
+                },
+                onNavigateToDashboard = {
+                    navController.navigate(NavRoutes.Dashboard.route) {
+                        popUpTo(NavRoutes.Login.route) { inclusive = true }
                     }
                 }
             )
@@ -75,10 +74,8 @@ fun SpeedReaderNavHost(
 
         composable(NavRoutes.Register.route) {
             RegisterScreen(
-                onNavigateToLogin = {
-                    navController.popBackStack()
-                },
-                onRegisterSuccess = {
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToBaseline = {
                     navController.navigate(NavRoutes.BaselineTest.route) {
                         popUpTo(NavRoutes.Register.route) { inclusive = true }
                     }
@@ -86,42 +83,56 @@ fun SpeedReaderNavHost(
             )
         }
 
-        composable(NavRoutes.BaselineTest.route) {
-            BaselineTestScreen(
-                onStartTest = {
-                    navController.navigate(NavRoutes.BaselineReading.route)
-                }
-            )
-        }
-
-        composable(NavRoutes.BaselineReading.route) {
-            BaselineReadingScreen(
-                onFinishReading = {
-                    navController.navigate(NavRoutes.BaselineQuiz.route) {
-                        popUpTo(NavRoutes.BaselineReading.route) { inclusive = true }
+        // Baseline flow with shared ViewModel
+        navigation(
+            startDestination = NavRoutes.BaselineTest.route,
+            route = "baseline_flow"
+        ) {
+            composable(NavRoutes.BaselineTest.route) {
+                val parentEntry = navController.getBackStackEntry("baseline_flow")
+                val sharedViewModel: BaselineViewModel = hiltViewModel(parentEntry)
+                BaselineTestScreen(
+                    viewModel = sharedViewModel,
+                    onStartReading = {
+                        navController.navigate(NavRoutes.BaselineReading.route)
                     }
-                }
-            )
-        }
+                )
+            }
 
-        composable(NavRoutes.BaselineQuiz.route) {
-            BaselineQuizScreen(
-                onQuizComplete = {
-                    navController.navigate(NavRoutes.BaselineResults.route) {
-                        popUpTo(NavRoutes.BaselineQuiz.route) { inclusive = true }
+            composable(NavRoutes.BaselineReading.route) {
+                val parentEntry = navController.getBackStackEntry("baseline_flow")
+                val sharedViewModel: BaselineViewModel = hiltViewModel(parentEntry)
+                BaselineReadingScreen(
+                    viewModel = sharedViewModel,
+                    onFinishReading = {
+                        navController.navigate(NavRoutes.BaselineQuiz.route)
                     }
-                }
-            )
-        }
+                )
+            }
 
-        composable(NavRoutes.BaselineResults.route) {
-            BaselineResultsScreen(
-                onContinue = {
-                    navController.navigate(NavRoutes.Dashboard.route) {
-                        popUpTo(NavRoutes.BaselineTest.route) { inclusive = true }
+            composable(NavRoutes.BaselineQuiz.route) {
+                val parentEntry = navController.getBackStackEntry("baseline_flow")
+                val sharedViewModel: BaselineViewModel = hiltViewModel(parentEntry)
+                BaselineQuizScreen(
+                    viewModel = sharedViewModel,
+                    onQuizComplete = {
+                        navController.navigate(NavRoutes.BaselineResults.route)
                     }
-                }
-            )
+                )
+            }
+
+            composable(NavRoutes.BaselineResults.route) {
+                val parentEntry = navController.getBackStackEntry("baseline_flow")
+                val sharedViewModel: BaselineViewModel = hiltViewModel(parentEntry)
+                BaselineResultsScreen(
+                    viewModel = sharedViewModel,
+                    onContinueToDashboard = {
+                        navController.navigate(NavRoutes.Dashboard.route) {
+                            popUpTo("baseline_flow") { inclusive = true }
+                        }
+                    }
+                )
+            }
         }
 
         composable(NavRoutes.Dashboard.route) {
@@ -138,7 +149,7 @@ fun SpeedReaderNavHost(
                 onNavigateToSettings = {
                     navController.navigate(NavRoutes.Settings.route)
                 },
-                onStartReading = { documentId ->
+                onNavigateToReading = { documentId ->
                     navController.navigate(NavRoutes.SpeedReading.createRoute(documentId))
                 }
             )
@@ -146,22 +157,16 @@ fun SpeedReaderNavHost(
 
         composable(NavRoutes.DocumentUpload.route) {
             DocumentUploadScreen(
-                onUploadComplete = {
-                    navController.popBackStack()
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
+                onNavigateBack = { navController.popBackStack() },
+                onUploadSuccess = { navController.popBackStack() }
             )
         }
 
         composable(NavRoutes.DocumentList.route) {
             DocumentListScreen(
+                onNavigateBack = { navController.popBackStack() },
                 onSelectDocument = { documentId ->
                     navController.navigate(NavRoutes.SpeedReading.createRoute(documentId))
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
                 }
             )
         }
@@ -170,16 +175,20 @@ fun SpeedReaderNavHost(
             route = NavRoutes.SpeedReading.route,
             arguments = listOf(navArgument("documentId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val documentId = backStackEntry.arguments?.getString("documentId") ?: ""
+            val documentId = backStackEntry.arguments?.getString("documentId") ?: return@composable
             SpeedReadingScreen(
                 documentId = documentId,
-                onSessionComplete = { sessionId ->
-                    navController.navigate(NavRoutes.ComprehensionQuiz.createRoute(sessionId)) {
-                        popUpTo(NavRoutes.SpeedReading.route) { inclusive = true }
+                onNavigateBack = { navController.popBackStack() },
+                onSessionComplete = { sessionId, shouldShowQuiz ->
+                    if (shouldShowQuiz) {
+                        navController.navigate(NavRoutes.ComprehensionQuiz.createRoute(sessionId)) {
+                            popUpTo(NavRoutes.SpeedReading.route) { inclusive = true }
+                        }
+                    } else {
+                        navController.navigate(NavRoutes.SessionResults.createRoute(sessionId)) {
+                            popUpTo(NavRoutes.SpeedReading.route) { inclusive = true }
+                        }
                     }
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
                 }
             )
         }
@@ -188,11 +197,11 @@ fun SpeedReaderNavHost(
             route = NavRoutes.ComprehensionQuiz.route,
             arguments = listOf(navArgument("sessionId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val sessionId = backStackEntry.arguments?.getString("sessionId") ?: ""
+            val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
             ComprehensionQuizScreen(
                 sessionId = sessionId,
-                onQuizComplete = {
-                    navController.navigate(NavRoutes.SessionResults.createRoute(sessionId)) {
+                onQuizComplete = { resultSessionId ->
+                    navController.navigate(NavRoutes.SessionResults.createRoute(resultSessionId)) {
                         popUpTo(NavRoutes.ComprehensionQuiz.route) { inclusive = true }
                     }
                 }
@@ -203,12 +212,12 @@ fun SpeedReaderNavHost(
             route = NavRoutes.SessionResults.route,
             arguments = listOf(navArgument("sessionId") { type = NavType.StringType })
         ) { backStackEntry ->
-            val sessionId = backStackEntry.arguments?.getString("sessionId") ?: ""
+            val sessionId = backStackEntry.arguments?.getString("sessionId") ?: return@composable
             SessionResultsScreen(
                 sessionId = sessionId,
                 onContinue = {
                     navController.navigate(NavRoutes.Dashboard.route) {
-                        popUpTo(NavRoutes.SessionResults.route) { inclusive = true }
+                        popUpTo(NavRoutes.Dashboard.route) { inclusive = true }
                     }
                 }
             )
@@ -216,17 +225,13 @@ fun SpeedReaderNavHost(
 
         composable(NavRoutes.Progress.route) {
             ProgressScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(NavRoutes.Settings.route) {
             SettingsScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
+                onNavigateBack = { navController.popBackStack() },
                 onSignOut = {
                     navController.navigate(NavRoutes.Login.route) {
                         popUpTo(0) { inclusive = true }

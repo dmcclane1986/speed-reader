@@ -21,13 +21,10 @@ data class ChatMessage(
 )
 
 data class ChatCompletionResponse(
-    val id: String,
     val choices: List<Choice>
 )
 
 data class Choice(
-    val index: Int,
-    val message: ChatMessage,
-    val finish_reason: String?
+    val message: ChatMessage
 )
 

@@ -2,8 +2,8 @@ package com.speedreader.trainer.ui.screens.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.AuthCredential
 import com.speedreader.trainer.data.repository.AuthRepository
-import com.speedreader.trainer.data.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,87 +11,97 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-sealed class AuthUiState {
-    object Idle : AuthUiState()
-    object Loading : AuthUiState()
-    data class Success(val hasCompletedBaseline: Boolean) : AuthUiState()
-    data class Error(val message: String) : AuthUiState()
-}
+data class AuthUiState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val isAuthenticated: Boolean = false,
+    val needsBaseline: Boolean = false
+)
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
-    private val authRepository: AuthRepository,
-    private val userRepository: UserRepository
+    private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
+    private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     fun signInWithEmail(email: String, password: String) {
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
             val result = authRepository.signInWithEmail(email, password)
-            
             result.fold(
                 onSuccess = {
-                    val profile = userRepository.getUserProfile()
-                    _uiState.value = AuthUiState.Success(
-                        hasCompletedBaseline = profile?.hasCompletedBaseline == true
-                    )
+                    checkBaselineStatus()
                 },
-                onFailure = { e ->
-                    _uiState.value = AuthUiState.Error(
-                        e.message ?: "Sign in failed"
+                onFailure = { exception ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = exception.message ?: "Sign in failed"
                     )
                 }
             )
         }
     }
 
-    fun registerWithEmail(email: String, password: String, displayName: String) {
+    fun signUpWithEmail(email: String, password: String, displayName: String = "") {
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
-            val result = authRepository.registerWithEmail(email, password, displayName)
-            
+            val result = authRepository.signUpWithEmail(email, password, displayName)
             result.fold(
                 onSuccess = {
-                    _uiState.value = AuthUiState.Success(hasCompletedBaseline = false)
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isAuthenticated = true,
+                        needsBaseline = true
+                    )
                 },
-                onFailure = { e ->
-                    _uiState.value = AuthUiState.Error(
-                        e.message ?: "Registration failed"
+                onFailure = { exception ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = exception.message ?: "Sign up failed"
                     )
                 }
             )
         }
     }
 
-    fun signInWithGoogle(idToken: String) {
+    fun signInWithCredential(credential: AuthCredential) {
         viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             
-            val result = authRepository.signInWithGoogle(idToken)
-            
+            val result = authRepository.signInWithCredential(credential)
             result.fold(
                 onSuccess = {
-                    val profile = userRepository.getUserProfile()
-                    _uiState.value = AuthUiState.Success(
-                        hasCompletedBaseline = profile?.hasCompletedBaseline == true
-                    )
+                    checkBaselineStatus()
                 },
-                onFailure = { e ->
-                    _uiState.value = AuthUiState.Error(
-                        e.message ?: "Google sign in failed"
+                onFailure = { exception ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = exception.message ?: "Google sign in failed"
                     )
                 }
             )
         }
     }
 
-    fun resetState() {
-        _uiState.value = AuthUiState.Idle
+    fun showError(message: String) {
+        _uiState.value = _uiState.value.copy(error = message, isLoading = false)
+    }
+
+    private suspend fun checkBaselineStatus() {
+        val hasBaseline = authRepository.hasCompletedBaseline()
+        _uiState.value = _uiState.value.copy(
+            isLoading = false,
+            isAuthenticated = true,
+            needsBaseline = !hasBaseline
+        )
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(error = null)
     }
 }
 

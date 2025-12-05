@@ -7,9 +7,3 @@ data class ComprehensionQuestion(
     val correctAnswerIndex: Int = 0
 )
 
-data class QuizResult(
-    val questions: List<ComprehensionQuestion>,
-    val userAnswers: List<Int>,
-    val score: Float // 0.0 to 1.0
-)
-
